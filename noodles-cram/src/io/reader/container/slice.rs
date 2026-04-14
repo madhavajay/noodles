@@ -33,7 +33,7 @@ pub struct Slice<'c> {
 }
 
 impl<'c> Slice<'c> {
-    pub(crate) fn header(&self) -> &Header {
+    pub fn header(&self) -> &Header {
         &self.header
     }
 
@@ -151,6 +151,73 @@ impl<'c> Slice<'c> {
         resolve_mates(&mut records)?;
 
         Ok(records)
+    }
+
+    /// Streams records from this slice, invoking `on_record` per decoded record.
+    /// Return `Ok(false)` from the callback to stop decoding early.
+    /// Mates are NOT resolved — caller that needs mate info should use `records()`.
+    pub fn records_while<'h: 'c, 'ch: 'c, F>(
+        &self,
+        reference_sequence_repository: fasta::Repository,
+        header: &'h sam::Header,
+        compression_header: &'ch CompressionHeader,
+        core_data_src: &'c [u8],
+        external_data_srcs: &'c [(block::ContentId, Cow<'c, [u8]>)],
+        mut on_record: F,
+    ) -> io::Result<()>
+    where
+        F: FnMut(&Record<'c>) -> io::Result<bool>,
+    {
+        let core_data_reader = BitReader::new(core_data_src);
+
+        let mut external_data_readers = ExternalDataReaders::new();
+        for (block_content_id, src) in external_data_srcs {
+            external_data_readers.insert(*block_content_id, src);
+        }
+
+        let reference_sequence_context = self.header.reference_sequence_context();
+        let initial_id = self.header.record_counter();
+
+        let mut reader = Records::new(
+            compression_header,
+            core_data_reader,
+            external_data_readers,
+            reference_sequence_context,
+            initial_id,
+        );
+
+        let slice_reference_sequence = get_slice_reference_sequence(
+            &reference_sequence_repository.clone(),
+            header,
+            compression_header,
+            &self.header,
+            external_data_srcs,
+        )?;
+
+        let substitution_matrix = compression_header.preservation_map().substitution_matrix();
+        let record_count = self.header.record_count();
+
+        let mut record = Record::default();
+        for _ in 0..record_count {
+            record = Record::default();
+            reader.read_record(&mut record)?;
+            record.header = Some(header);
+
+            if !record.bam_flags.is_unmapped() && !record.cram_flags.sequence_is_missing() {
+                record.reference_sequence = if reference_sequence_context.is_many() {
+                    get_record_reference_sequence(&reference_sequence_repository, header, &record)?
+                } else {
+                    slice_reference_sequence.clone()
+                };
+                record.substitution_matrix = substitution_matrix.clone();
+            }
+
+            if !on_record(&record)? {
+                break;
+            }
+        }
+
+        Ok(())
     }
 }
 
