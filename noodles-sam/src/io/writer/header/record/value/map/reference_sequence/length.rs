@@ -18,10 +18,7 @@ where
     writer.write_all(tag::LENGTH.as_ref())?;
     write_separator(writer)?;
 
-    let n = i32::try_from(usize::from(length))
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-    num::write_i32(writer, n)?;
+    num::write_usize(writer, usize::from(length))?;
 
     Ok(())
 }

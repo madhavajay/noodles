@@ -628,6 +628,7 @@ where
 {
     let mut raw_values = Vec::with_capacity(values.len());
     let mut max_len = 0;
+    let mut max_value = i32::MIN;
 
     for value in values {
         let raw_value = match value {
@@ -637,10 +638,31 @@ where
         };
 
         max_len = cmp::max(max_len, raw_value.len());
+        max_value = cmp::max(
+            max_value,
+            raw_value.iter().copied().max().unwrap_or_default(),
+        );
 
         raw_values.push(raw_value);
     }
 
+    if max_value <= i32::from(Int8::MAX_VALUE) {
+        write_int8_genotype_values(writer, &raw_values, max_len)
+    } else if max_value <= i32::from(Int16::MAX_VALUE) {
+        write_int16_genotype_values(writer, &raw_values, max_len)
+    } else {
+        write_int32_genotype_values(writer, &raw_values, max_len)
+    }
+}
+
+fn write_int8_genotype_values<W>(
+    writer: &mut W,
+    raw_values: &[Vec<i32>],
+    max_len: usize,
+) -> io::Result<()>
+where
+    W: Write,
+{
     write_type(writer, Some(Type::Int8(max_len)))?;
 
     for raw_value in raw_values {
@@ -648,36 +670,93 @@ where
         let pad = max_len - len;
 
         for n in raw_value {
-            let m = u8::try_from(n).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-            writer.write_all(&[m])?;
+            let m = i8::try_from(*n).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            write_i8(writer, m)?;
+        }
 
-            for _ in 0..pad {
-                writer.write_all(&[i8::from(Int8::EndOfVector) as u8])?;
-            }
+        for _ in 0..pad {
+            write_i8(writer, i8::from(Int8::EndOfVector))?;
         }
     }
 
     Ok(())
 }
 
-fn encode_genotype_str(genotype: &str) -> io::Result<Vec<i8>> {
+fn write_int16_genotype_values<W>(
+    writer: &mut W,
+    raw_values: &[Vec<i32>],
+    max_len: usize,
+) -> io::Result<()>
+where
+    W: Write,
+{
+    write_type(writer, Some(Type::Int16(max_len)))?;
+
+    for raw_value in raw_values {
+        let len = raw_value.len();
+        let pad = max_len - len;
+
+        for n in raw_value {
+            let m =
+                i16::try_from(*n).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            write_i16_le(writer, m)?;
+        }
+
+        for _ in 0..pad {
+            write_i16_le(writer, i16::from(Int16::EndOfVector))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn write_int32_genotype_values<W>(
+    writer: &mut W,
+    raw_values: &[Vec<i32>],
+    max_len: usize,
+) -> io::Result<()>
+where
+    W: Write,
+{
+    write_type(writer, Some(Type::Int32(max_len)))?;
+
+    for raw_value in raw_values {
+        let len = raw_value.len();
+        let pad = max_len - len;
+
+        for n in raw_value {
+            write_i32_le(writer, *n)?;
+        }
+
+        for _ in 0..pad {
+            write_i32_le(writer, i32::from(Int32::EndOfVector))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn encode_genotype_str(genotype: &str) -> io::Result<Vec<i32>> {
     const MISSING_ALLELE: &str = ".";
 
     fn is_phasing(c: char) -> bool {
         matches!(c, '|' | '/')
     }
 
-    fn encode(s: &str, phasing: &str) -> io::Result<i8> {
+    fn encode(s: &str, phasing: &str) -> io::Result<i32> {
         if s == MISSING_ALLELE {
             return Ok(0);
         }
 
-        let j: i8 = s
+        let j: i32 = s
             .parse()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         let is_phased = phasing == "|";
 
-        let mut i = (j + 1) << 1;
+        let mut i = j
+            .checked_add(1)
+            .and_then(|n| n.checked_shl(1))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid genotype"))?;
 
         if is_phased {
             i |= 0x01;
@@ -703,15 +782,18 @@ fn encode_genotype_str(genotype: &str) -> io::Result<Vec<i8>> {
     Ok(values)
 }
 
-fn encode_genotype(genotype: &dyn Genotype) -> io::Result<Vec<i8>> {
-    fn encode(position: Option<usize>, phasing: Phasing) -> io::Result<i8> {
+fn encode_genotype(genotype: &dyn Genotype) -> io::Result<Vec<i32>> {
+    fn encode(position: Option<usize>, phasing: Phasing) -> io::Result<i32> {
         let i = if let Some(position) = position {
-            i8::try_from(position).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+            i32::try_from(position).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
         } else {
             return Ok(0);
         };
 
-        let mut n = (i + 1) << 1;
+        let mut n = i
+            .checked_add(1)
+            .and_then(|m| m.checked_shl(1))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid genotype"))?;
 
         if phasing == Phasing::Phased {
             n |= 0x01;
@@ -1339,6 +1421,26 @@ mod tests {
             0x21, // Some(Type::Int8(2))
             0x02, 0x81, // "0"
             0x02, 0x04, // "0/1"
+        ];
+
+        assert_eq!(buf, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_write_genotype_values_with_large_allele_indexes() -> io::Result<()> {
+        let value_0 = ValueBuf::from("0/300");
+        let value_1 = ValueBuf::from("240/260");
+        let values = [Some((&value_0).into()), Some((&value_1).into())];
+
+        let mut buf = Vec::new();
+        write_genotype_values(&mut buf, &values)?;
+
+        let expected = [
+            0x22, // Some(Type::Int16(2))
+            0x02, 0x00, 0x5a, 0x02, // "0/300"
+            0xe2, 0x01, 0x0a, 0x02, // "240/260"
         ];
 
         assert_eq!(buf, expected);

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+  * sam/io/writer: Allow large reference sequence lengths and positions.
+
+    Header `LN` values and record positions are now written without narrowing
+    them through signed 32-bit integers, matching large-coordinate SAM inputs.
+
 ## 0.85.0 - 2026-05-06
 
 ### Added

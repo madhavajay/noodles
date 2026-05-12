@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+  * bcf/record/codec: Encode and decode `GT` values wider than `Int8`.
+
+    Genotype allele indexes that do not fit in the BCF `Int8` payload are now
+    written using the smallest valid integer width (`Int16` or `Int32`) and can
+    be decoded from `Int8`, `Int16`, or `Int32` values.
+
 ## 0.86.0 - 2026-05-06
 
 ### Changed

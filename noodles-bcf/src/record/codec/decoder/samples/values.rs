@@ -408,7 +408,7 @@ pub(super) fn read_genotype_values(
                 for _ in 0..sample_count {
                     let value = read_i8(src)
                         .map_err(DecodeError::InvalidRawValue)
-                        .and_then(|v| parse_genotype_values(&[v]))
+                        .and_then(|v| parse_genotype_values(&[normalize_i8_genotype_value(v)]))
                         .map(Value::Genotype)?;
 
                     values.push(Some(value));
@@ -417,6 +417,56 @@ pub(super) fn read_genotype_values(
             _ => {
                 for _ in 0..sample_count {
                     let buf = read_i8s(src, len).map_err(DecodeError::InvalidRawValue)?;
+                    let raw_values = buf
+                        .into_iter()
+                        .map(normalize_i8_genotype_value)
+                        .collect::<Vec<_>>();
+                    let genotype = parse_genotype_values(&raw_values)?;
+                    let value = Value::Genotype(genotype);
+                    values.push(Some(value));
+                }
+            }
+        },
+        Some(Type::Int16(len)) => match len {
+            0 => values.push(None),
+            1 => {
+                for _ in 0..sample_count {
+                    let value = read_i16(src)
+                        .map_err(DecodeError::InvalidRawValue)
+                        .and_then(|v| parse_genotype_values(&[normalize_i16_genotype_value(v)]))
+                        .map(Value::Genotype)?;
+
+                    values.push(Some(value));
+                }
+            }
+            _ => {
+                for _ in 0..sample_count {
+                    let buf = read_i16s(src, len).map_err(DecodeError::InvalidRawValue)?;
+                    let raw_values = buf
+                        .into_iter()
+                        .map(normalize_i16_genotype_value)
+                        .collect::<Vec<_>>();
+                    let genotype = parse_genotype_values(&raw_values)?;
+                    let value = Value::Genotype(genotype);
+                    values.push(Some(value));
+                }
+            }
+        },
+        Some(Type::Int32(len)) => match len {
+            0 => values.push(None),
+            1 => {
+                for _ in 0..sample_count {
+                    let value = read_i32(src)
+                        .map_err(DecodeError::InvalidRawValue)
+                        .and_then(|v| parse_genotype_values(&[v]))
+                        .map(Value::Genotype)?;
+
+                    values.push(Some(value));
+                }
+            }
+            _ => {
+                for _ in 0..sample_count {
+                    let buf = read_i32s(src, len).map_err(DecodeError::InvalidRawValue)?;
                     let genotype = parse_genotype_values(&buf)?;
                     let value = Value::Genotype(genotype);
                     values.push(Some(value));
@@ -429,7 +479,21 @@ pub(super) fn read_genotype_values(
     Ok(values)
 }
 
-fn parse_genotype_values(values: &[i8]) -> Result<Genotype, DecodeError> {
+fn normalize_i8_genotype_value(value: i8) -> i32 {
+    match Int8::from(value) {
+        Int8::EndOfVector => i32::from(Int32::EndOfVector),
+        _ => i32::from(value),
+    }
+}
+
+fn normalize_i16_genotype_value(value: i16) -> i32 {
+    match Int16::from(value) {
+        Int16::EndOfVector => i32::from(Int32::EndOfVector),
+        _ => i32::from(value),
+    }
+}
+
+fn parse_genotype_values(values: &[i32]) -> Result<Genotype, DecodeError> {
     use noodles_vcf::variant::{
         record::samples::series::value::genotype::Phasing,
         record_buf::samples::sample::value::genotype::Allele,
@@ -438,7 +502,7 @@ fn parse_genotype_values(values: &[i8]) -> Result<Genotype, DecodeError> {
     let mut alleles = Vec::with_capacity(values.len());
 
     for &value in values {
-        if let Int8::EndOfVector = Int8::from(value) {
+        if let Int32::EndOfVector = Int32::from(value) {
             break;
         }
 
@@ -818,10 +882,20 @@ mod tests {
         );
 
         assert_eq!(
-            parse_genotype_values(&[0x02, i8::from(Int8::EndOfVector)])?,
+            parse_genotype_values(&[0x02, i32::from(Int32::EndOfVector)])?,
             [Allele::new(Some(0), Phasing::Unphased)]
                 .into_iter()
                 .collect()
+        );
+
+        assert_eq!(
+            parse_genotype_values(&[0x02, 0x025a])?,
+            [
+                Allele::new(Some(0), Phasing::Unphased),
+                Allele::new(Some(300), Phasing::Unphased),
+            ]
+            .into_iter()
+            .collect()
         );
 
         Ok(())
