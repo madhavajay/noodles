@@ -2,6 +2,7 @@ use std::{cmp, io, num::NonZero};
 
 use noodles_core::Position;
 
+/// A single-reference context for a CRAM container or slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Context {
     reference_sequence_id: usize,
@@ -22,32 +23,41 @@ impl Context {
         }
     }
 
+    /// Returns the reference sequence ID.
     pub fn reference_sequence_id(&self) -> usize {
         self.reference_sequence_id
     }
 
+    /// Returns the alignment start position.
     pub fn alignment_start(&self) -> Position {
         self.alignment_start
     }
 
+    /// Returns the alignment span.
     pub fn alignment_span(&self) -> usize {
         usize::from(self.alignment_end) - usize::from(self.alignment_start) + 1
     }
 
+    /// Returns the alignment end position.
     pub fn alignment_end(&self) -> Position {
         self.alignment_end
     }
 }
 
+/// A CRAM container or slice reference sequence context.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ReferenceSequenceContext {
+    /// The context covers a single reference sequence interval.
     Some(Context),
+    /// The context has no associated reference sequence.
     #[default]
     None,
+    /// The context covers multiple reference sequences.
     Many,
 }
 
 impl ReferenceSequenceContext {
+    /// Creates a single-reference sequence context.
     pub fn some(
         reference_sequence_id: usize,
         alignment_start: Position,
@@ -60,10 +70,12 @@ impl ReferenceSequenceContext {
         ))
     }
 
+    /// Returns whether the context covers multiple reference sequences.
     pub fn is_many(&self) -> bool {
         matches!(self, Self::Many)
     }
 
+    /// Updates this context with an alignment record interval.
     pub fn update(
         &mut self,
         reference_sequence_id: Option<usize>,

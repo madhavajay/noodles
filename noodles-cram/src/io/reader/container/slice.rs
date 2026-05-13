@@ -160,6 +160,7 @@ impl<'c> Slice<'c> {
     /// When `validate_reference_md5` is false, the slice-level reference MD5
     /// checksum check is skipped. Useful for graceful fallback when the caller
     /// knows the reference may differ but still wants to attempt decoding.
+    #[allow(clippy::too_many_arguments)]
     pub fn records_while<'h: 'c, 'ch: 'c, F>(
         &self,
         reference_sequence_repository: fasta::Repository,
@@ -203,9 +204,8 @@ impl<'c> Slice<'c> {
         let substitution_matrix = compression_header.preservation_map().substitution_matrix();
         let record_count = self.header.record_count();
 
-        let mut record = Record::default();
         for _ in 0..record_count {
-            record = Record::default();
+            let mut record = Record::default();
             reader.read_record(&mut record)?;
             record.header = Some(header);
 
@@ -447,12 +447,10 @@ fn get_slice_reference_sequence_with_options<'c>(
 
         // § 8.5 "Slice header block" (2024-09-04): "MD5sums should not be validated if the stored
         // checksum is all-zero."
-        if validate_md5 {
-            if let Some(expected_md5) = slice_header.reference_md5() {
-                let interval = context.alignment_start()..=context.alignment_end();
-                let subsequence = &sequence[interval];
-                validate_sequence(subsequence, expected_md5)?;
-            }
+        if validate_md5 && let Some(expected_md5) = slice_header.reference_md5() {
+            let interval = context.alignment_start()..=context.alignment_end();
+            let subsequence = &sequence[interval];
+            validate_sequence(subsequence, expected_md5)?;
         }
 
         Ok(Some(ReferenceSequence::External { sequence }))
