@@ -1,9 +1,10 @@
+#![doc(hidden)]
+
 mod four_bit_packed;
 
 pub use self::four_bit_packed::FourBitPacked;
 use super::Sequence;
 
-#[doc(hidden)]
 pub enum SequenceRef<'a> {
     FourBitPacked(FourBitPacked<'a>),
     Raw(&'a [u8]),

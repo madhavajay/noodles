@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.0 - 2026-05-06
+
+### Changed
+
+  * core: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
 ## 0.19.0 - 2026-02-18
 
 ### Changed

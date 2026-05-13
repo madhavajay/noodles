@@ -129,7 +129,7 @@ impl Record {
     /// assert!(record.cigar().is_empty());
     /// ```
     pub fn cigar(&self) -> Cigar<'_> {
-        self.0.cigar()
+        Cigar::new(self.0.cigar())
     }
 
     /// Returns the mate reference sequence ID.
@@ -212,7 +212,7 @@ impl Record {
     /// assert!(record.quality_scores().is_empty());
     /// ```
     pub fn quality_scores(&self) -> QualityScores<'_> {
-        self.0.quality_scores()
+        QualityScores::new(self.0.quality_scores())
     }
 
     /// Returns the data.
@@ -225,7 +225,7 @@ impl Record {
     /// assert!(record.data().is_empty());
     /// ```
     pub fn data(&self) -> Data<'_> {
-        self.0.data()
+        Data::new(self.0.data())
     }
 }
 

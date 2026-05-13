@@ -1,7 +1,5 @@
 use std::{array, iter::FusedIterator, slice};
 
-use super::decode_base;
-
 /// A BAM record sequence bases iterator.
 pub struct Iter<'a> {
     iter: slice::Iter<'a, u8>,
@@ -86,7 +84,7 @@ impl ExactSizeIterator for Iter<'_> {}
 impl FusedIterator for Iter<'_> {}
 
 pub(super) fn decoded_bases(n: u8) -> array::IntoIter<u8, 2> {
-    [decode_base(n >> 4), decode_base(n)].into_iter()
+    super::decode_bases(n).into_iter()
 }
 
 fn discard_front_decoded_bases(n: u8) -> array::IntoIter<u8, 2> {

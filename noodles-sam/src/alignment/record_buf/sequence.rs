@@ -35,6 +35,12 @@ impl AsMut<Vec<u8>> for Sequence {
     }
 }
 
+impl Extend<u8> for Sequence {
+    fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
+        self.0.extend(iter);
+    }
+}
+
 impl From<&[u8]> for Sequence {
     fn from(buf: &[u8]) -> Self {
         Self::from(Vec::from(buf))
@@ -50,6 +56,12 @@ impl<const N: usize> From<&[u8; N]> for Sequence {
 impl From<Vec<u8>> for Sequence {
     fn from(bases: Vec<u8>) -> Self {
         Self(bases)
+    }
+}
+
+impl FromIterator<u8> for Sequence {
+    fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 

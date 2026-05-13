@@ -50,10 +50,10 @@ pub struct Record<'c> {
     pub(crate) template_length: i32,
     pub(crate) mate_distance: Option<usize>,
     pub(crate) data: Vec<(Tag, Value<'c>)>,
-    pub(crate) sequence: &'c [u8],
+    pub(crate) sequence: Cow<'c, [u8]>,
     pub(crate) features: Vec<Feature<'c>>,
     pub(crate) mapping_quality: Option<MappingQuality>,
-    pub(crate) quality_scores: &'c [u8],
+    pub(crate) quality_scores: Cow<'c, [u8]>,
 }
 
 impl Record<'_> {
@@ -190,10 +190,10 @@ impl Default for Record<'_> {
             template_length: 0,
             mate_distance: None,
             data: Vec::new(),
-            sequence: &[],
+            sequence: Cow::from(&[]),
             features: Vec::new(),
             mapping_quality: None,
-            quality_scores: &[],
+            quality_scores: Cow::from(&[]),
         }
     }
 }
@@ -247,7 +247,7 @@ impl sam::alignment::Record for Record<'_> {
 
     fn sequence(&self) -> Box<dyn sam::alignment::record::Sequence + '_> {
         if self.bam_flags.is_unmapped() || self.cram_flags.sequence_is_missing() {
-            Box::new(Bases(self.sequence))
+            Box::new(Bases(&self.sequence[..]))
         } else {
             let (reference_sequence, alignment_start) = match self.reference_sequence.as_ref() {
                 Some(ReferenceSequence::Embedded {
@@ -278,7 +278,7 @@ impl sam::alignment::Record for Record<'_> {
 
     fn quality_scores(&self) -> Box<dyn sam::alignment::record::QualityScores + '_> {
         if self.bam_flags.is_unmapped() || self.cram_flags.quality_scores_are_stored_as_array() {
-            Box::new(Scores(self.quality_scores))
+            Box::new(Scores(&self.quality_scores[..]))
         } else {
             Box::new(QualityScores::new(&self.features, self.read_length))
         }
@@ -368,7 +368,7 @@ mod tests {
         let features = [
             Feature::Insertion {
                 position: Position::try_from(1)?,
-                bases: b"AC",
+                bases: Cow::from(b"AC"),
             },
             Feature::InsertBase {
                 position: Position::try_from(4)?,
@@ -384,7 +384,7 @@ mod tests {
             },
             Feature::SoftClip {
                 position: Position::try_from(16)?,
-                bases: b"ACGT",
+                bases: Cow::from(b"ACGT"),
             },
         ];
         assert_eq!(calculate_alignment_span(20, &features), 21);

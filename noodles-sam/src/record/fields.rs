@@ -9,7 +9,6 @@ use lexical_core::FromLexical;
 use noodles_core::Position;
 
 pub(crate) use self::bounds::Bounds;
-use super::{Cigar, Data, QualityScores};
 use crate::Header;
 
 const MISSING: &[u8] = b"*";
@@ -65,10 +64,10 @@ impl Fields {
         }
     }
 
-    pub fn cigar(&self) -> Cigar<'_> {
+    pub fn cigar(&self) -> &[u8] {
         match &self.buf[self.bounds.cigar_range()] {
-            MISSING => Cigar::new(b""),
-            buf => Cigar::new(buf),
+            MISSING => b"",
+            buf => buf,
         }
     }
 
@@ -110,18 +109,15 @@ impl Fields {
         }
     }
 
-    pub fn quality_scores(&self) -> QualityScores<'_> {
-        let buf = match &self.buf[self.bounds.quality_scores_range()] {
+    pub fn quality_scores(&self) -> &[u8] {
+        match &self.buf[self.bounds.quality_scores_range()] {
             MISSING => b"",
             buf => buf,
-        };
-
-        QualityScores::new(buf)
+        }
     }
 
-    pub fn data(&self) -> Data<'_> {
-        let buf = &self.buf[self.bounds.data_range()];
-        Data::new(buf)
+    pub fn data(&self) -> &[u8] {
+        &self.buf[self.bounds.data_range()]
     }
 }
 

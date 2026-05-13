@@ -1,6 +1,6 @@
 use noodles_sam as sam;
 
-use super::{Iter, decode_base};
+use super::{Iter, decode_bases};
 
 /// A BAM record subsequence.
 #[derive(Debug, Eq, PartialEq)]
@@ -32,13 +32,10 @@ impl<'a> Subsequence<'a> {
 
         if j < self.end {
             let k = j / 2;
-            let b = self.src[k];
-
-            if j.is_multiple_of(2) {
-                Some(decode_base(b >> 4))
-            } else {
-                Some(decode_base(b))
-            }
+            let n = self.src[k];
+            let [l, r] = decode_bases(n);
+            let b = if j.is_multiple_of(2) { l } else { r };
+            Some(b)
         } else {
             None
         }

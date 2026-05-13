@@ -1,5 +1,7 @@
 pub mod array;
 
+use std::borrow::Cow;
+
 use noodles_sam as sam;
 
 pub use self::array::Array;
@@ -15,22 +17,22 @@ pub enum Value<'c> {
     Int32(i32),
     UInt32(u32),
     Float(f32),
-    String(&'c BStr),
-    Hex(&'c BStr),
+    String(Cow<'c, BStr>),
+    Hex(Cow<'c, BStr>),
     Array(Array<'c>),
 }
 
-impl<'c> From<Value<'c>> for sam::alignment::record::data::field::Value<'c> {
-    fn from(value: Value<'c>) -> Self {
+impl<'c> From<&'c Value<'c>> for sam::alignment::record::data::field::Value<'c> {
+    fn from(value: &'c Value<'c>) -> Self {
         match value {
-            Value::Character(c) => Self::Character(c),
-            Value::Int8(n) => Self::Int8(n),
-            Value::UInt8(n) => Self::UInt8(n),
-            Value::Int16(n) => Self::Int16(n),
-            Value::UInt16(n) => Self::UInt16(n),
-            Value::Int32(n) => Self::Int32(n),
-            Value::UInt32(n) => Self::UInt32(n),
-            Value::Float(n) => Self::Float(n),
+            Value::Character(c) => Self::Character(*c),
+            Value::Int8(n) => Self::Int8(*n),
+            Value::UInt8(n) => Self::UInt8(*n),
+            Value::Int16(n) => Self::Int16(*n),
+            Value::UInt16(n) => Self::UInt16(*n),
+            Value::Int32(n) => Self::Int32(*n),
+            Value::UInt32(n) => Self::UInt32(*n),
+            Value::Float(n) => Self::Float(*n),
             Value::String(s) => Self::String(s),
             Value::Hex(s) => Self::Hex(s),
             Value::Array(array) => Self::Array(array.into()),

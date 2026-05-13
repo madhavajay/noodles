@@ -1,12 +1,15 @@
 //! Alignment record.
 
 pub mod cigar;
+mod cigar_ref;
 pub mod data;
+mod data_ref;
 mod flags;
 pub mod mapping_quality;
 mod quality_scores;
+mod quality_scores_ref;
 mod sequence;
-pub(crate) mod sequence_ref;
+pub mod sequence_ref;
 
 use std::io;
 
@@ -25,7 +28,10 @@ use crate::{
     },
 };
 
-pub use self::sequence_ref::SequenceRef;
+pub use self::{
+    cigar_ref::CigarRef, data_ref::DataRef, quality_scores_ref::QualityScoresRef,
+    sequence_ref::SequenceRef,
+};
 
 /// An alignment record.
 pub trait Record {
@@ -128,8 +134,23 @@ pub trait Record {
     }
 
     #[doc(hidden)]
+    fn cigar_ref(&self) -> CigarRef<'_> {
+        CigarRef::Cigar(self.cigar())
+    }
+
+    #[doc(hidden)]
     fn sequence_ref(&self) -> SequenceRef<'_> {
         SequenceRef::Sequence(self.sequence())
+    }
+
+    #[doc(hidden)]
+    fn quality_scores_ref(&self) -> QualityScoresRef<'_> {
+        QualityScoresRef::QualityScores(self.quality_scores())
+    }
+
+    #[doc(hidden)]
+    fn data_ref(&self) -> DataRef<'_> {
+        DataRef::Data(self.data())
     }
 }
 

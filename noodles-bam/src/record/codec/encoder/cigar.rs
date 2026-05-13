@@ -5,7 +5,7 @@ use std::{error, fmt, io};
 use noodles_sam::{
     self as sam,
     alignment::record::{
-        Cigar,
+        Cigar, CigarRef,
         cigar::{Op, op::Kind},
     },
 };
@@ -67,7 +67,36 @@ where
     }
 }
 
-pub(super) fn write_cigar<C>(dst: &mut Vec<u8>, cigar: &C) -> Result<(), EncodeError>
+pub(super) fn write_cigar(dst: &mut Vec<u8>, cigar: CigarRef<'_>) -> Result<(), EncodeError> {
+    match cigar {
+        CigarRef::FourBytePacked(src) => write_four_byte_packed_cigar(dst, src),
+        CigarRef::Cigar(c) => write_generic_cigar(dst, &c),
+    }
+}
+
+fn write_four_byte_packed_cigar(dst: &mut Vec<u8>, src: &[u8]) -> Result<(), EncodeError> {
+    const MAX_KIND_VALUE: u8 = 8;
+
+    if let (chunks, []) = src.as_chunks() {
+        if !chunks
+            .iter()
+            .all(|[b, _, _, _]| (b & 0x0f) <= MAX_KIND_VALUE)
+        {
+            return Err(EncodeError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid kind",
+            )));
+        }
+    } else {
+        unreachable!();
+    }
+
+    dst.extend(src);
+
+    Ok(())
+}
+
+pub(super) fn write_generic_cigar<C>(dst: &mut Vec<u8>, cigar: &C) -> Result<(), EncodeError>
 where
     C: Cigar,
 {
@@ -120,7 +149,8 @@ mod tests {
     fn test_write_cigar() -> Result<(), EncodeError> {
         fn t(buf: &mut Vec<u8>, cigar: &CigarBuf, expected: &[u8]) -> Result<(), EncodeError> {
             buf.clear();
-            write_cigar(buf, cigar)?;
+            let c = CigarRef::Cigar(Box::new(cigar));
+            write_cigar(buf, c)?;
             assert_eq!(buf, expected);
             Ok(())
         }
@@ -140,6 +170,30 @@ mod tests {
                 .collect(),
             &[0x40, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x00],
         )?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_write_four_byte_packed_cigar() -> Result<(), EncodeError> {
+        let mut dst = Vec::new();
+
+        dst.clear();
+        let src = [0x40, 0x00, 0x00, 0x00];
+        write_four_byte_packed_cigar(&mut dst, &src)?;
+        assert_eq!(dst, src);
+
+        dst.clear();
+        let src = [0x40, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x00];
+        write_four_byte_packed_cigar(&mut dst, &src)?;
+        assert_eq!(dst, src);
+
+        dst.clear();
+        let src = [0x0f, 0x00, 0x00, 0x00];
+        assert!(matches!(
+            write_four_byte_packed_cigar(&mut dst, &src),
+            Err(EncodeError::Io(e)) if e.kind() == io::ErrorKind::InvalidInput
+        ));
 
         Ok(())
     }

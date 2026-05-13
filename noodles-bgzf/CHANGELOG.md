@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.47.0 - 2026-05-06
+
+### Changed
+
+  * bgzf: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
+  * bgzf/deflate: Use libdeflate's CRC32 implementation when the `libdeflate`
+    feature is enabled.
+
+    This matches the (de)compressor backend selection and is measurably faster
+    on both x86_64 and aarch64.
+
+### Fixed
+
+  * bgzf/io/multithreaded_writer: Return error on send if the write channel is
+    disconnected ([#390]).
+
+    The write channel disconnects on an I/O error. The error is sent back to
+    the main thread on finish, but more input would previously cause sending a
+    new message to the channel to panic.
+
+[#390]: https://github.com/zaeleus/noodles/issues/390
+
 ## 0.46.0 - 2026-02-18
 
 ### Changed

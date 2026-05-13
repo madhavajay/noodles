@@ -18,10 +18,17 @@ use std::{error, fmt, io};
 use noodles_sam::{self as sam, alignment::Record};
 
 use self::{
-    bin::write_bin, cigar::overflowing_write_cigar_op_count, cigar::write_cigar, data::write_data,
-    flags::write_flags, mapping_quality::write_mapping_quality, name::write_name,
-    position::write_position, quality_scores::write_quality_scores,
-    reference_sequence_id::write_reference_sequence_id, sequence::write_sequence,
+    bin::write_bin,
+    cigar::overflowing_write_cigar_op_count,
+    cigar::{write_cigar, write_generic_cigar},
+    data::write_data,
+    flags::write_flags,
+    mapping_quality::write_mapping_quality,
+    name::write_name,
+    position::write_position,
+    quality_scores::write_quality_scores,
+    reference_sequence_id::write_reference_sequence_id,
+    sequence::write_sequence,
     template_length::write_template_length,
 };
 
@@ -126,9 +133,10 @@ where
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     if let Some(cigar) = &cigar {
-        write_cigar(dst, cigar).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        write_generic_cigar(dst, cigar)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     } else {
-        write_cigar(dst, &record.cigar())
+        write_cigar(dst, record.cigar_ref())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     }
 
@@ -137,9 +145,9 @@ where
     write_sequence(dst, read_length, record.sequence_ref())?;
 
     // qual
-    write_quality_scores(dst, base_count, record.quality_scores())?;
+    write_quality_scores(dst, base_count, record.quality_scores_ref())?;
 
-    write_data(dst, record.data())?;
+    write_data(dst, record.data_ref())?;
 
     if cigar.is_some() {
         data::field::write_cigar(dst, &record.cigar())?;

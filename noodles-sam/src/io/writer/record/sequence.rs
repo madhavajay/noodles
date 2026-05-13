@@ -132,16 +132,9 @@ mod tests {
     #[test]
     fn test_write_four_bit_packed_sequence() -> io::Result<()> {
         let mut buf = Vec::new();
-
-        let sequence = FourBitPacked {
-            src: &[0x12, 0x48], // ACGT
-            base_count: 4,
-        };
-
+        let sequence = FourBitPacked::new(&[0x12, 0x48], 4); // ACGT
         write_four_bit_packed_sequence(&mut buf, &sequence)?;
-
         assert_eq!(buf, b"ACGT");
-
         Ok(())
     }
 

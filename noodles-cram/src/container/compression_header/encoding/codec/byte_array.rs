@@ -1,4 +1,4 @@
-use std::io;
+use std::{borrow::Cow, io};
 
 use crate::{
     container::{
@@ -30,13 +30,13 @@ pub enum ByteArray {
 }
 
 impl<'de> Decode<'de> for ByteArray {
-    type Value = &'de [u8];
+    type Value = Cow<'de, [u8]>;
 
     fn decode(
         &self,
         core_data_reader: &mut BitReader<'de>,
         external_data_readers: &mut ExternalDataReaders<'de>,
-    ) -> std::io::Result<Self::Value> {
+    ) -> io::Result<Self::Value> {
         match self {
             Self::ByteArrayLength {
                 len_encoding,
@@ -76,7 +76,7 @@ impl<'de> Decode<'de> for ByteArray {
                 let (buf, rest) = src.split_at(i);
                 *src = &rest[1..];
 
-                Ok(buf)
+                Ok(Cow::from(buf))
             }
         }
     }
@@ -147,7 +147,7 @@ mod tests {
 
             let actual = encoding.decode(&mut core_data_reader, &mut external_data_readers)?;
 
-            assert_eq!(expected, actual);
+            assert_eq!(expected, &actual[..]);
 
             Ok(())
         }

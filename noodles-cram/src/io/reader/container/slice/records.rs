@@ -227,9 +227,9 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
             .names()
             .ok_or_else(|| missing_data_series_encoding_error(DataSeries::Names))?
             .decode(&mut self.core_data_reader, &mut self.external_data_readers)
-            .map(|buf| match buf {
+            .map(|buf| match &buf[..] {
                 MISSING => None,
-                _ => Some(Cow::from(buf)),
+                _ => Some(buf),
             })
     }
 
@@ -497,7 +497,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
             })
     }
 
-    fn read_stretches_of_bases(&mut self) -> io::Result<&'c [u8]> {
+    fn read_stretches_of_bases(&mut self) -> io::Result<Cow<'c, [u8]>> {
         self.compression_header
             .data_series_encodings()
             .stretches_of_bases()
@@ -505,7 +505,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
             .decode(&mut self.core_data_reader, &mut self.external_data_readers)
     }
 
-    fn read_stretches_of_quality_scores(&mut self) -> io::Result<&'c [u8]> {
+    fn read_stretches_of_quality_scores(&mut self) -> io::Result<Cow<'c, [u8]>> {
         self.compression_header
             .data_series_encodings()
             .stretches_of_quality_scores()
@@ -539,7 +539,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
             .decode(&mut self.core_data_reader, &mut self.external_data_readers)
     }
 
-    fn read_insertion_bases(&mut self) -> io::Result<&'c [u8]> {
+    fn read_insertion_bases(&mut self) -> io::Result<Cow<'c, [u8]>> {
         self.compression_header
             .data_series_encodings()
             .insertion_bases()
@@ -569,7 +569,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
             })
     }
 
-    fn read_soft_clip_bases(&mut self) -> io::Result<&'c [u8]> {
+    fn read_soft_clip_bases(&mut self) -> io::Result<Cow<'c, [u8]>> {
         self.compression_header
             .data_series_encodings()
             .soft_clip_bases()
@@ -623,7 +623,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
         Ok(())
     }
 
-    fn read_sequence(&mut self, read_length: usize) -> io::Result<&'c [u8]> {
+    fn read_sequence(&mut self, read_length: usize) -> io::Result<Cow<'c, [u8]>> {
         let encoding = self
             .compression_header
             .data_series_encodings()
@@ -637,7 +637,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
         )
     }
 
-    fn read_quality_scores(&mut self, read_length: usize) -> io::Result<&'c [u8]> {
+    fn read_quality_scores(&mut self, read_length: usize) -> io::Result<Cow<'c, [u8]>> {
         const MISSING: u8 = 0xff;
 
         let encoding = self
@@ -653,7 +653,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
         )?;
 
         if src.iter().all(|&n| n == MISSING) {
-            Ok(&[])
+            Ok(Cow::from(&[]))
         } else {
             Ok(src)
         }

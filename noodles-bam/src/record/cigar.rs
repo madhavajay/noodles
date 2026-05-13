@@ -9,8 +9,13 @@ const CHUNK_SIZE: usize = mem::size_of::<u32>();
 pub struct Cigar<'a>(&'a [u8]);
 
 impl<'a> Cigar<'a> {
-    pub(super) fn new(src: &'a [u8]) -> Self {
+    pub(crate) fn new(src: &'a [u8]) -> Self {
         Self(src)
+    }
+
+    /// Returns a byte slice of raw CIGAR operations.
+    pub fn as_bytes(&self) -> &'a [u8] {
+        self.0
     }
 
     /// Returns whether there are any CIGAR operations.

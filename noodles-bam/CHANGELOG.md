@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.89.0 - 2026-05-06
+
+### Added
+
+  * bam: Add `RecordRef` as an immutable view over a raw BAM record.
+
+    This allows the caller to own the data, rather than, e.g., `Record`.
+
+  * bam/record: Add methods to return underlying field byte slices ([#391]).
+
+    This adds `Cigar::as_bytes`, `Data::as_bytes`, `QualityScores::as_bytes`,
+    and `Sequence::as_bytes`.
+
+[#391]: https://github.com/zaeleus/noodles/issues/391
+
+### Changed
+
+  * bam: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
 ## 0.88.0 - 2026-03-27
 
 ### Added

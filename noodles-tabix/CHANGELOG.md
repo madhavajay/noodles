@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.62.0 - 2026-05-06
+
+### Changed
+
+  * tabix: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
 ## 0.61.0 - 2026-03-13
 
 ### Changed

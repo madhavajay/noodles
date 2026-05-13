@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.57.0 - 2026-05-06
+
+### Changed
+
+  * gff: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
 ## 0.56.0 - 2026-03-13
 
 ### Changed

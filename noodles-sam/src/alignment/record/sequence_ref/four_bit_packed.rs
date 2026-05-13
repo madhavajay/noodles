@@ -3,11 +3,15 @@ mod iter;
 use self::iter::Iter;
 
 pub struct FourBitPacked<'a> {
-    pub(crate) src: &'a [u8],
-    pub(crate) base_count: usize,
+    src: &'a [u8],
+    base_count: usize,
 }
 
 impl<'a> FourBitPacked<'a> {
+    pub fn new(src: &'a [u8], base_count: usize) -> Self {
+        Self { src, base_count }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.base_count == 0
     }

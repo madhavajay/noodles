@@ -1,7 +1,5 @@
 use std::io::{self, Read};
 
-use flate2::Crc;
-
 use crate::{BGZF_HEADER_SIZE, gz, io::Block};
 
 const MIN_FRAME_SIZE: usize = BGZF_HEADER_SIZE + gz::TRAILER_SIZE;
@@ -134,15 +132,14 @@ fn block_initialize(block: &mut Block, block_size: u64, isize: usize) {
     data.resize(isize);
 }
 
-fn inflate(src: &[u8], crc32: u32, dst: &mut [u8]) -> io::Result<()> {
+fn inflate(src: &[u8], expected_crc32: u32, dst: &mut [u8]) -> io::Result<()> {
     use crate::deflate;
 
     deflate::decode(src, dst)?;
 
-    let mut crc = Crc::new();
-    crc.update(dst);
+    let actual_crc32 = deflate::crc32(dst);
 
-    if crc.sum() == crc32 {
+    if actual_crc32 == expected_crc32 {
         Ok(())
     } else {
         Err(io::Error::new(

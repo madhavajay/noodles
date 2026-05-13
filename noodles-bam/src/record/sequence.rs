@@ -16,8 +16,13 @@ pub struct Sequence<'a> {
 }
 
 impl<'a> Sequence<'a> {
-    pub(super) fn new(src: &'a [u8], base_count: usize) -> Self {
+    pub(crate) fn new(src: &'a [u8], base_count: usize) -> Self {
         Self { src, base_count }
+    }
+
+    /// Returns a byte slice of encoded bases.
+    pub fn as_bytes(&self) -> &'a [u8] {
+        self.src
     }
 
     /// Returns whether there are any bases.
@@ -36,13 +41,10 @@ impl<'a> Sequence<'a> {
     pub fn get(&self, i: usize) -> Option<u8> {
         if i < self.len() {
             let j = i / 2;
-            let b = self.src[j];
-
-            if i.is_multiple_of(2) {
-                Some(decode_base(b >> 4))
-            } else {
-                Some(decode_base(b))
-            }
+            let n = self.src[j];
+            let [l, r] = decode_bases(n);
+            let b = if i.is_multiple_of(2) { l } else { r };
+            Some(b)
         } else {
             None
         }
@@ -123,26 +125,24 @@ impl<'a> From<Sequence<'a>> for sam::alignment::record_buf::Sequence {
     }
 }
 
-fn decode_base(n: u8) -> u8 {
-    match n & 0x0f {
-        0 => b'=',
-        1 => b'A',
-        2 => b'C',
-        3 => b'M',
-        4 => b'G',
-        5 => b'R',
-        6 => b'S',
-        7 => b'V',
-        8 => b'T',
-        9 => b'W',
-        10 => b'Y',
-        11 => b'H',
-        12 => b'K',
-        13 => b'D',
-        14 => b'B',
-        15 => b'N',
-        _ => unreachable!(),
+const CODES: [[u8; 2]; 256] = build_codes();
+
+const fn build_codes() -> [[u8; 2]; 256] {
+    const BASES: [u8; 16] = *b"=ACMGRSVTWYHKDBN";
+
+    let mut table = [[0u8; 2]; 256];
+    let mut i = 0;
+
+    while i < 256 {
+        table[i] = [BASES[i >> 4], BASES[i & 0xf]];
+        i += 1;
     }
+
+    table
+}
+
+fn decode_bases(n: u8) -> [u8; 2] {
+    CODES[usize::from(n)]
 }
 
 #[cfg(test)]
@@ -208,21 +208,11 @@ mod tests {
 
     #[test]
     fn test_decode_base() {
-        assert_eq!(decode_base(0), b'=');
-        assert_eq!(decode_base(1), b'A');
-        assert_eq!(decode_base(2), b'C');
-        assert_eq!(decode_base(3), b'M');
-        assert_eq!(decode_base(4), b'G');
-        assert_eq!(decode_base(5), b'R');
-        assert_eq!(decode_base(6), b'S');
-        assert_eq!(decode_base(7), b'V');
-        assert_eq!(decode_base(8), b'T');
-        assert_eq!(decode_base(9), b'W');
-        assert_eq!(decode_base(10), b'Y');
-        assert_eq!(decode_base(11), b'H');
-        assert_eq!(decode_base(12), b'K');
-        assert_eq!(decode_base(13), b'D');
-        assert_eq!(decode_base(14), b'B');
-        assert_eq!(decode_base(15), b'N');
+        let expected = *b"=ACMGRSVTWYHKDBN";
+
+        for (n, base) in expected.into_iter().enumerate() {
+            assert_eq!(CODES[n << 4][0], base);
+            assert_eq!(CODES[n][1], base);
+        }
     }
 }

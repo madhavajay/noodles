@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.88.0 - 2026-05-06
+
+### Changed
+
+  * vcf: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
 ## 0.87.0 - 2026-03-27
 
 ### Added

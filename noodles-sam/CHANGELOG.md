@@ -2,13 +2,29 @@
 
 ## Unreleased
 
+### Fixed
+
+  * sam/io/writer: Allow large reference sequence lengths and positions.
+
+    Header `LN` values and record positions are now written without narrowing
+    them through signed 32-bit integers, matching large-coordinate SAM inputs.
+
+## 0.85.0 - 2026-05-06
+
 ### Added
 
   * sam/alignment/record_buf/convert: Add
     `RecordBuf::try_clone_from_alignment_record` to clone a
     `sam::alignment::Record` into an existing `RecordBuf` ([#388]).
 
+  * sam/alignment/record_buf/sequence: Implement `Extend<u8>` and
+    `FromIterator<u8>` for `Sequence`.
+
 [#388]: https://github.com/zaeleus/noodles/issues/388
+
+### Changed
+
+  * sam: Raise minimum supported Rust version (MSRV) to 1.89.0.
 
 ### Removed
 
@@ -39,7 +55,7 @@
 
 ### Added
 
-  * sam/alignment/record/quality_scores: Implement `Extend<u8>` and
+  * sam/alignment/record_buf/quality_scores: Implement `Extend<u8>` and
     `FromIterator<u8>` for `QualityScores`.
 
 ### Changed

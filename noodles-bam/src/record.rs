@@ -61,9 +61,7 @@ impl Record {
     /// assert!(record.mapping_quality().is_none());
     /// ```
     pub fn mapping_quality(&self) -> Option<MappingQuality> {
-        self.as_record_ref()
-            .mapping_quality()
-            .and_then(MappingQuality::new)
+        self.as_record_ref().mapping_quality()
     }
 
     /// Returns the flags.
@@ -144,7 +142,7 @@ impl Record {
     /// assert!(record.cigar().is_empty());
     /// ```
     pub fn cigar(&self) -> Cigar<'_> {
-        Cigar::new(self.as_record_ref().cigar())
+        self.as_record_ref().cigar()
     }
 
     /// Returns the sequence.
@@ -157,9 +155,7 @@ impl Record {
     /// assert!(record.sequence().is_empty());
     /// ```
     pub fn sequence(&self) -> Sequence<'_> {
-        let record_ref = self.as_record_ref();
-        let base_count = record_ref.base_count();
-        Sequence::new(record_ref.sequence(), base_count)
+        self.as_record_ref().sequence()
     }
 
     /// Returns the quality scores.
@@ -172,7 +168,7 @@ impl Record {
     /// assert!(record.quality_scores().is_empty());
     /// ```
     pub fn quality_scores(&self) -> QualityScores<'_> {
-        QualityScores::new(self.as_record_ref().quality_scores())
+        self.as_record_ref().quality_scores()
     }
 
     /// Returns the data.
@@ -185,11 +181,12 @@ impl Record {
     /// assert!(record.data().is_empty());
     /// ```
     pub fn data(&self) -> Data<'_> {
-        Data::new(self.as_record_ref().data())
+        self.as_record_ref().data()
     }
 
     fn as_record_ref(&self) -> RecordRef<'_> {
-        RecordRef::new(&self.0)
+        // SAFETY: The inner buffer was validated to look record-like on read.
+        RecordRef::new_unchecked(&self.0)
     }
 }
 
@@ -262,6 +259,11 @@ impl sam::alignment::Record for Record {
         Box::new(self.cigar())
     }
 
+    fn cigar_ref(&self) -> sam::alignment::record::CigarRef<'_> {
+        let src = self.cigar().as_bytes();
+        sam::alignment::record::CigarRef::FourBytePacked(src)
+    }
+
     fn mate_reference_sequence_id<'r, 'h: 'r>(
         &'r self,
         _: &'h sam::Header,
@@ -281,12 +283,31 @@ impl sam::alignment::Record for Record {
         Box::new(self.sequence())
     }
 
+    fn sequence_ref(&self) -> sam::alignment::record::SequenceRef<'_> {
+        use sam::alignment::record::sequence_ref::FourBitPacked;
+
+        let sequence = self.sequence();
+        let src = sequence.as_bytes();
+        let base_count = sequence.len();
+        sam::alignment::record::SequenceRef::FourBitPacked(FourBitPacked::new(src, base_count))
+    }
+
     fn quality_scores(&self) -> Box<dyn sam::alignment::record::QualityScores + '_> {
         Box::new(self.quality_scores())
     }
 
+    fn quality_scores_ref(&self) -> sam::alignment::record::QualityScoresRef<'_> {
+        let src = self.quality_scores().as_bytes();
+        sam::alignment::record::QualityScoresRef::Raw(src)
+    }
+
     fn data(&self) -> Box<dyn sam::alignment::record::Data + '_> {
         Box::new(self.data())
+    }
+
+    fn data_ref(&self) -> sam::alignment::record::DataRef<'_> {
+        let src = self.data().as_bytes();
+        sam::alignment::record::DataRef::FieldEncoded(src)
     }
 }
 

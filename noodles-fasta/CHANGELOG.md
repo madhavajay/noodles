@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.61.0 - 2026-05-06
+
+### Changed
+
+  * fasta: Raise minimum supported Rust version (MSRV) to 1.89.0.
+
 ## 0.60.0 - 2026-02-24
 
 ### Changed

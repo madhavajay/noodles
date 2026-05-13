@@ -21,7 +21,7 @@ use crate::io::writer::MAX_BUF_SIZE;
 #[cfg(feature = "libdeflate")]
 type CompressionLevel = libdeflater::CompressionLvl;
 #[cfg(not(feature = "libdeflate"))]
-type CompressionLevel = flate2::Compression;
+type CompressionLevel = i32;
 
 pin_project! {
     /// An async BGZF writer.

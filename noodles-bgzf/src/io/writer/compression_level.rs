@@ -95,9 +95,9 @@ impl From<CompressionLevel> for libdeflater::CompressionLvl {
 }
 
 #[cfg(not(feature = "libdeflate"))]
-impl From<CompressionLevel> for flate2::Compression {
+impl From<CompressionLevel> for i32 {
     fn from(compression_level: CompressionLevel) -> Self {
-        Self::new(u32::from(u8::from(compression_level)))
+        i32::from(u8::from(compression_level))
     }
 }
 

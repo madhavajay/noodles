@@ -7,8 +7,13 @@ use noodles_sam as sam;
 pub struct QualityScores<'a>(&'a [u8]);
 
 impl<'a> QualityScores<'a> {
-    pub(super) fn new(src: &'a [u8]) -> Self {
+    pub(crate) fn new(src: &'a [u8]) -> Self {
         Self(src)
+    }
+
+    /// Returns the underlying byte slice.
+    pub fn as_bytes(&self) -> &'a [u8] {
+        self.0
     }
 
     /// Returns whether there are any scores.
