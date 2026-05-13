@@ -33,7 +33,7 @@ pub struct Slice<'c> {
 }
 
 impl<'c> Slice<'c> {
-    pub(crate) fn header(&self) -> &Header {
+    pub fn header(&self) -> &Header {
         &self.header
     }
 
@@ -151,6 +151,79 @@ impl<'c> Slice<'c> {
         resolve_mates(&mut records)?;
 
         Ok(records)
+    }
+
+    /// Streams records from this slice, invoking `on_record` per decoded record.
+    /// Return `Ok(false)` from the callback to stop decoding early.
+    /// Mates are NOT resolved — caller that needs mate info should use `records()`.
+    ///
+    /// When `validate_reference_md5` is false, the slice-level reference MD5
+    /// checksum check is skipped. Useful for graceful fallback when the caller
+    /// knows the reference may differ but still wants to attempt decoding.
+    pub fn records_while<'h: 'c, 'ch: 'c, F>(
+        &self,
+        reference_sequence_repository: fasta::Repository,
+        header: &'h sam::Header,
+        compression_header: &'ch CompressionHeader,
+        core_data_src: &'c [u8],
+        external_data_srcs: &'c [(block::ContentId, Cow<'c, [u8]>)],
+        validate_reference_md5: bool,
+        mut on_record: F,
+    ) -> io::Result<()>
+    where
+        F: FnMut(&Record<'c>) -> io::Result<bool>,
+    {
+        let core_data_reader = BitReader::new(core_data_src);
+
+        let mut external_data_readers = ExternalDataReaders::new();
+        for (block_content_id, src) in external_data_srcs {
+            external_data_readers.insert(*block_content_id, src);
+        }
+
+        let reference_sequence_context = self.header.reference_sequence_context();
+        let initial_id = self.header.record_counter();
+
+        let mut reader = Records::new(
+            compression_header,
+            core_data_reader,
+            external_data_readers,
+            reference_sequence_context,
+            initial_id,
+        );
+
+        let slice_reference_sequence = get_slice_reference_sequence_with_options(
+            &reference_sequence_repository.clone(),
+            header,
+            compression_header,
+            &self.header,
+            external_data_srcs,
+            validate_reference_md5,
+        )?;
+
+        let substitution_matrix = compression_header.preservation_map().substitution_matrix();
+        let record_count = self.header.record_count();
+
+        let mut record = Record::default();
+        for _ in 0..record_count {
+            record = Record::default();
+            reader.read_record(&mut record)?;
+            record.header = Some(header);
+
+            if !record.bam_flags.is_unmapped() && !record.cram_flags.sequence_is_missing() {
+                record.reference_sequence = if reference_sequence_context.is_many() {
+                    get_record_reference_sequence(&reference_sequence_repository, header, &record)?
+                } else {
+                    slice_reference_sequence.clone()
+                };
+                record.substitution_matrix = substitution_matrix.clone();
+            }
+
+            if !on_record(&record)? {
+                break;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -329,6 +402,24 @@ fn get_slice_reference_sequence<'c>(
     slice_header: &Header,
     external_data_srcs: &'c [(block::ContentId, Cow<'c, [u8]>)],
 ) -> io::Result<Option<ReferenceSequence<'c>>> {
+    get_slice_reference_sequence_with_options(
+        reference_sequence_repository,
+        header,
+        compression_header,
+        slice_header,
+        external_data_srcs,
+        true,
+    )
+}
+
+fn get_slice_reference_sequence_with_options<'c>(
+    reference_sequence_repository: &fasta::Repository,
+    header: &sam::Header,
+    compression_header: &CompressionHeader,
+    slice_header: &Header,
+    external_data_srcs: &'c [(block::ContentId, Cow<'c, [u8]>)],
+    validate_md5: bool,
+) -> io::Result<Option<ReferenceSequence<'c>>> {
     let reference_sequence_context = slice_header.reference_sequence_context();
 
     let ReferenceSequenceContext::Some(context) = reference_sequence_context else {
@@ -356,10 +447,12 @@ fn get_slice_reference_sequence<'c>(
 
         // § 8.5 "Slice header block" (2024-09-04): "MD5sums should not be validated if the stored
         // checksum is all-zero."
-        if let Some(expected_md5) = slice_header.reference_md5() {
-            let interval = context.alignment_start()..=context.alignment_end();
-            let subsequence = &sequence[interval];
-            validate_sequence(subsequence, expected_md5)?;
+        if validate_md5 {
+            if let Some(expected_md5) = slice_header.reference_md5() {
+                let interval = context.alignment_start()..=context.alignment_end();
+                let subsequence = &sequence[interval];
+                validate_sequence(subsequence, expected_md5)?;
+            }
         }
 
         Ok(Some(ReferenceSequence::External { sequence }))

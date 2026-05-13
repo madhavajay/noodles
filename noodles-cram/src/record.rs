@@ -14,6 +14,7 @@ use bstr::{BStr, ByteSlice};
 use noodles_core::Position;
 use noodles_sam::{
     self as sam,
+    alignment::Record as _,
     alignment::record::{MappingQuality, data::field::Tag},
 };
 
@@ -65,6 +66,107 @@ impl Record<'_> {
             let end = usize::from(alignment_start) + self.alignment_span() - 1;
             Position::new(end)
         })
+    }
+
+    pub fn base_quality_at_reference_position(
+        &self,
+        target: Position,
+        reference_base: u8,
+    ) -> Option<(u8, u8)> {
+        if self.bam_flags.is_unmapped() {
+            return None;
+        }
+
+        let mut reference_position = self.alignment_start?;
+        let mut read_position = Position::MIN;
+        let quality_scores: Vec<u8> = self.quality_scores().iter().collect::<io::Result<_>>().ok()?;
+
+        for feature in &self.features {
+            let feature_position = usize::from(feature.position());
+            let match_len = feature_position.checked_sub(usize::from(read_position))?;
+
+            if let Some(end) = reference_position.checked_add(match_len) {
+                if target >= reference_position && target < end {
+                    let offset = usize::from(target) - usize::from(reference_position);
+                    let read_index = usize::from(read_position) - 1 + offset;
+                    let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
+                    return Some((reference_base, quality_score));
+                }
+            }
+
+            reference_position = reference_position.checked_add(match_len)?;
+            read_position = read_position.checked_add(match_len)?;
+
+            match feature {
+                Feature::Bases { bases, .. } => {
+                    let len = bases.len();
+                    if let Some(end) = reference_position.checked_add(len) {
+                        if target >= reference_position && target < end {
+                            let offset = usize::from(target) - usize::from(reference_position);
+                            let read_index = usize::from(read_position) - 1 + offset;
+                            let quality_score =
+                                quality_scores.get(read_index).copied().unwrap_or(0);
+                            return bases.get(offset).copied().map(|base| (base, quality_score));
+                        }
+                    }
+                    reference_position = reference_position.checked_add(len)?;
+                    read_position = read_position.checked_add(len)?;
+                }
+                Feature::ReadBase { base, .. } => {
+                    if target == reference_position {
+                        let read_index = usize::from(read_position) - 1;
+                        let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
+                        return Some((*base, quality_score));
+                    }
+                    reference_position = reference_position.checked_add(1)?;
+                    read_position = read_position.checked_add(1)?;
+                }
+                Feature::Substitution { code, .. } => {
+                    if target == reference_position {
+                        let reference_base =
+                            crate::container::compression_header::preservation_map::substitution_matrix::Base::try_from(reference_base)
+                                .unwrap_or(crate::container::compression_header::preservation_map::substitution_matrix::Base::N);
+                        let base = u8::from(self.substitution_matrix.get(reference_base, *code));
+                        let read_index = usize::from(read_position) - 1;
+                        let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
+                        return Some((base, quality_score));
+                    }
+                    reference_position = reference_position.checked_add(1)?;
+                    read_position = read_position.checked_add(1)?;
+                }
+                Feature::Insertion { bases, .. } => {
+                    read_position = read_position.checked_add(bases.len())?;
+                }
+                Feature::Deletion { len, .. } | Feature::ReferenceSkip { len, .. } => {
+                    let end = reference_position.checked_add(*len)?;
+                    if target >= reference_position && target < end {
+                        return None;
+                    }
+                    reference_position = end;
+                }
+                Feature::InsertBase { .. } => {
+                    read_position = read_position.checked_add(1)?;
+                }
+                Feature::SoftClip { bases, .. } => {
+                    read_position = read_position.checked_add(bases.len())?;
+                }
+                Feature::Scores { .. }
+                | Feature::QualityScore { .. }
+                | Feature::Padding { .. }
+                | Feature::HardClip { .. } => {}
+            }
+        }
+
+        let remaining = self.read_length.checked_sub(usize::from(read_position) - 1)?;
+        let end = reference_position.checked_add(remaining)?;
+        if target >= reference_position && target < end {
+            let offset = usize::from(target) - usize::from(reference_position);
+            let read_index = usize::from(read_position) - 1 + offset;
+            let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
+            Some((reference_base, quality_score))
+        } else {
+            None
+        }
     }
 }
 
