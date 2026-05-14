@@ -483,12 +483,19 @@ fn get_record_reference_sequence<'c>(
         .reference_sequence(header)
         .transpose()?
         .map(|(name, _)| name)
-        .expect("invalid reference sequence ID");
+        .ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "invalid reference sequence ID")
+        })?;
 
     let sequence = reference_sequence_repository
         .get(reference_sequence_name)
         .transpose()?
-        .expect("invalid reference sequence name");
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("missing reference sequence: {reference_sequence_name}"),
+            )
+        })?;
 
     Ok(Some(ReferenceSequence::External { sequence }))
 }
