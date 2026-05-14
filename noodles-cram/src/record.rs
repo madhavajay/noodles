@@ -68,6 +68,7 @@ impl Record<'_> {
         })
     }
 
+    /// Returns the observed base and quality score at a reference position.
     pub fn base_quality_at_reference_position(
         &self,
         target: Position,
@@ -79,19 +80,24 @@ impl Record<'_> {
 
         let mut reference_position = self.alignment_start?;
         let mut read_position = Position::MIN;
-        let quality_scores: Vec<u8> = self.quality_scores().iter().collect::<io::Result<_>>().ok()?;
+        let quality_scores: Vec<u8> = self
+            .quality_scores()
+            .iter()
+            .collect::<io::Result<_>>()
+            .ok()?;
 
         for feature in &self.features {
             let feature_position = usize::from(feature.position());
             let match_len = feature_position.checked_sub(usize::from(read_position))?;
 
-            if let Some(end) = reference_position.checked_add(match_len) {
-                if target >= reference_position && target < end {
-                    let offset = usize::from(target) - usize::from(reference_position);
-                    let read_index = usize::from(read_position) - 1 + offset;
-                    let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
-                    return Some((reference_base, quality_score));
-                }
+            if let Some(end) = reference_position.checked_add(match_len)
+                && target >= reference_position
+                && target < end
+            {
+                let offset = usize::from(target) - usize::from(reference_position);
+                let read_index = usize::from(read_position) - 1 + offset;
+                let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
+                return Some((reference_base, quality_score));
             }
 
             reference_position = reference_position.checked_add(match_len)?;
@@ -100,14 +106,14 @@ impl Record<'_> {
             match feature {
                 Feature::Bases { bases, .. } => {
                     let len = bases.len();
-                    if let Some(end) = reference_position.checked_add(len) {
-                        if target >= reference_position && target < end {
-                            let offset = usize::from(target) - usize::from(reference_position);
-                            let read_index = usize::from(read_position) - 1 + offset;
-                            let quality_score =
-                                quality_scores.get(read_index).copied().unwrap_or(0);
-                            return bases.get(offset).copied().map(|base| (base, quality_score));
-                        }
+                    if let Some(end) = reference_position.checked_add(len)
+                        && target >= reference_position
+                        && target < end
+                    {
+                        let offset = usize::from(target) - usize::from(reference_position);
+                        let read_index = usize::from(read_position) - 1 + offset;
+                        let quality_score = quality_scores.get(read_index).copied().unwrap_or(0);
+                        return bases.get(offset).copied().map(|base| (base, quality_score));
                     }
                     reference_position = reference_position.checked_add(len)?;
                     read_position = read_position.checked_add(len)?;
@@ -157,7 +163,9 @@ impl Record<'_> {
             }
         }
 
-        let remaining = self.read_length.checked_sub(usize::from(read_position) - 1)?;
+        let remaining = self
+            .read_length
+            .checked_sub(usize::from(read_position) - 1)?;
         let end = reference_position.checked_add(remaining)?;
         if target >= reference_position && target < end {
             let offset = usize::from(target) - usize::from(reference_position);
