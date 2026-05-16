@@ -1,5 +1,6 @@
 //! CRAM container and fields.
 
+/// CRAM container data block fields.
 pub mod block;
 pub mod block_content_encoder_map;
 pub mod compression_header;
