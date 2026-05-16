@@ -1,4 +1,4 @@
-pub(crate) mod block;
+pub mod block;
 pub mod compression_header;
 pub mod header;
 pub mod slice;
@@ -37,6 +37,23 @@ impl Container {
         let mut src = &self.src[..end];
 
         read_compression_header(&mut src)
+    }
+
+    /// Returns every raw block of the container, in stored order
+    /// (the compression-header block, then each slice's header and
+    /// data blocks), with metadata preserved (`content_type`,
+    /// `content_id`, `compression_method`, `uncompressed_size`, and
+    /// the stored bytes via `src` whose `len()` is the compressed
+    /// size). A CRAM container body is a contiguous sequence of
+    /// blocks; this is the low-level inventory `samtools cram-size`
+    /// consumes.
+    pub fn blocks(&self) -> io::Result<Vec<block::Block<'_>>> {
+        let mut src = &self.src[..];
+        let mut blocks = Vec::new();
+        while !src.is_empty() {
+            blocks.push(block::read_block(&mut src)?);
+        }
+        Ok(blocks)
     }
 
     /// Returns the iterator over slices.

@@ -54,7 +54,7 @@ impl<'c> Block<'c> {
     }
 }
 
-fn read_block<'c>(src: &mut &'c [u8]) -> io::Result<Block<'c>> {
+pub fn read_block<'c>(src: &mut &'c [u8]) -> io::Result<Block<'c>> {
     let original_src = *src;
 
     let mut compression_method = read_compression_method(src)?;
