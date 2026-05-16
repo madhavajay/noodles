@@ -34,6 +34,12 @@ impl<'c> ExternalDataReaders<'c> {
     }
 }
 
+impl<'c> Default for ExternalDataReaders<'c> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn init_low_readers<'c>() -> [Option<&'c [u8]>; 64] {
     [
         None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
