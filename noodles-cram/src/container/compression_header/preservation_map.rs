@@ -7,7 +7,7 @@ pub mod tag_sets;
 pub(crate) use {substitution_matrix::SubstitutionMatrix, tag_sets::TagSets};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PreservationMap {
+pub struct PreservationMap {
     pub(crate) records_have_names: bool,
     pub(crate) alignment_starts_are_deltas: bool,
     pub(crate) external_reference_sequence_is_required: bool,
