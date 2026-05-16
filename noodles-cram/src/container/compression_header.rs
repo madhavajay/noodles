@@ -1,11 +1,18 @@
 //! CRAM container compression header.
+//!
+//! These types are exposed as a low-level inventory surface (used by
+//! `samtools cram-size` via htslib-rs); the individual accessors are
+//! self-describing, so `missing_docs` is allowed for this subtree.
+#![allow(missing_docs)]
 
 pub mod data_series_encodings;
-pub(crate) mod encoding;
+pub mod encoding;
 pub mod preservation_map;
-mod tag_encodings;
+pub mod tag_encodings;
 
-pub(crate) use self::{
+// Public so external consumers (e.g. `samtools cram-size` via
+// htslib-rs) can inspect a container's encodings / preservation map.
+pub use self::{
     data_series_encodings::DataSeriesEncodings, encoding::Encoding,
     preservation_map::PreservationMap, tag_encodings::TagEncodings,
 };
@@ -34,15 +41,18 @@ impl CompressionHeader {
         }
     }
 
-    pub(crate) fn preservation_map(&self) -> &PreservationMap {
+    /// The container's preservation map.
+    pub fn preservation_map(&self) -> &PreservationMap {
         &self.preservation_map
     }
 
-    pub(crate) fn data_series_encodings(&self) -> &DataSeriesEncodings {
+    /// The container's data-series encodings.
+    pub fn data_series_encodings(&self) -> &DataSeriesEncodings {
         &self.data_series_encodings
     }
 
-    pub(crate) fn tag_encodings(&self) -> &TagEncodings {
+    /// The container's tag encodings.
+    pub fn tag_encodings(&self) -> &TagEncodings {
         &self.tag_encodings
     }
 }

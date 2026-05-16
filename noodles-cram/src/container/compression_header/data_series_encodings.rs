@@ -12,7 +12,7 @@ use crate::container::block;
 
 /// CRAM container compression header data series encodings.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct DataSeriesEncodings {
+pub struct DataSeriesEncodings {
     pub(crate) bam_flags: Option<Encoding<Integer>>,
     pub(crate) cram_flags: Option<Encoding<Integer>>,
     pub(crate) reference_sequence_ids: Option<Encoding<Integer>>,

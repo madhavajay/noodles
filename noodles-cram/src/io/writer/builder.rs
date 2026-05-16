@@ -92,6 +92,14 @@ impl Builder {
         self
     }
 
+    /// Embeds each mapped slice's reference span in-container
+    /// (`samtools view -O cram,embed_ref=1`) so the file decodes
+    /// without an external reference.
+    pub fn set_embed_reference(mut self, value: bool) -> Self {
+        self.options.embed_reference = value;
+        self
+    }
+
     /// Builds a CRAM writer from a path.
     ///
     /// # Examples

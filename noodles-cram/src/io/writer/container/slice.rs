@@ -45,7 +45,7 @@ pub(super) fn build_slice(
     let (core_data_buf, external_data_bufs) =
         write_records(compression_header, reference_sequence_context, records)?;
 
-    let (core_data_block, external_data_blocks) = build_blocks(
+    let (core_data_block, mut external_data_blocks) = build_blocks(
         &options.block_content_encoder_map,
         records,
         core_data_buf,
@@ -61,13 +61,38 @@ pub(super) fn build_slice(
         reference_sequence_context,
     )?;
 
+    // `embed_ref`: store the slice's reference span as an extra
+    // uncompressed external block so the file decodes with no
+    // external reference. The bytes are exactly the window the
+    // substitution features were encoded against.
+    let embedded_reference_bases_block_content_id = if options.embed_reference
+        && let ReferenceSequenceContext::Some(context) = reference_sequence_context
+    {
+        let (reference_sequence_name, _) = header
+            .reference_sequences()
+            .get_index(context.reference_sequence_id())
+            .expect("invalid reference sequence ID");
+        let reference_sequence = reference_sequence_repository
+            .get(reference_sequence_name)
+            .expect("missing reference sequence")?;
+        let interval = context.alignment_start()..=context.alignment_end();
+        let sequence = &reference_sequence[interval];
+        let embed_id = block_content_ids.iter().copied().max().unwrap_or(0) + 1;
+        let embed_block = Block::encode(ContentType::ExternalData, embed_id, None, sequence)?;
+        external_data_blocks.push(embed_block);
+        block_content_ids.push(embed_id);
+        Some(embed_id)
+    } else {
+        None
+    };
+
     let header = Header {
         reference_sequence_context,
         record_count: records.len(),
         record_counter,
         block_count: block_content_ids.len(),
         block_content_ids,
-        embedded_reference_bases_block_content_id: None,
+        embedded_reference_bases_block_content_id,
         reference_md5,
         optional_tags: Vec::new(),
     };

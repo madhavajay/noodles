@@ -433,17 +433,50 @@ fn get_slice_reference_sequence_with_options<'c>(
     let embedded_reference_bases_block_content_id =
         slice_header.embedded_reference_bases_block_content_id();
 
-    if external_reference_sequence_is_required {
+    // Prefer an embedded reference when the slice carries one
+    // (`embed_ref` CRAM): the bases travel in-container, so no
+    // external reference is needed even when the preservation map's
+    // reference-required (RR) flag is also set.
+    if let Some(block_content_id) = embedded_reference_bases_block_content_id {
+        let sequence = external_data_srcs
+            .iter()
+            .find(|(id, _)| *id == block_content_id)
+            .map(|(_, src)| src)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid embedded reference block content ID",
+                )
+            })?;
+
+        Ok(Some(ReferenceSequence::Embedded {
+            reference_start: context.alignment_start(),
+            sequence,
+        }))
+    } else if external_reference_sequence_is_required {
         let reference_sequence_name = header
             .reference_sequences()
             .get_index(context.reference_sequence_id())
             .map(|(name, _)| name)
-            .expect("invalid slice reference sequence ID");
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid slice reference sequence ID",
+                )
+            })?;
 
         let sequence = reference_sequence_repository
             .get(reference_sequence_name)
             .transpose()?
-            .expect("invalid slice reference sequence name");
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "missing reference sequence: {}",
+                        String::from_utf8_lossy(reference_sequence_name.as_ref())
+                    ),
+                )
+            })?;
 
         // § 8.5 "Slice header block" (2024-09-04): "MD5sums should not be validated if the stored
         // checksum is all-zero."
@@ -454,17 +487,6 @@ fn get_slice_reference_sequence_with_options<'c>(
         }
 
         Ok(Some(ReferenceSequence::External { sequence }))
-    } else if let Some(block_content_id) = embedded_reference_bases_block_content_id {
-        let sequence = external_data_srcs
-            .iter()
-            .find(|(id, _)| *id == block_content_id)
-            .map(|(_, src)| src)
-            .expect("invalid block content ID");
-
-        Ok(Some(ReferenceSequence::Embedded {
-            reference_start: context.alignment_start(),
-            sequence,
-        }))
     } else {
         Ok(None)
     }
