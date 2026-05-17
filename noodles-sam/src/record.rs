@@ -323,3 +323,31 @@ impl crate::alignment::Record for Record {
         Box::new(self.data())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZero;
+
+    use bstr::BString;
+
+    use super::*;
+    use crate::header::record::value::{
+        Map,
+        map::{ReferenceSequence, reference_sequence},
+    };
+
+    #[test]
+    fn reference_sequence_id_resolves_alternative_name() -> io::Result<()> {
+        let mut sq0 = Map::<ReferenceSequence>::new(const { NonZero::new(8).unwrap() });
+        sq0.other_fields_mut().insert(
+            reference_sequence::tag::ALTERNATIVE_NAMES,
+            BString::from("alt0,alt1"),
+        );
+        let header = Header::builder().add_reference_sequence("sq0", sq0).build();
+        let record = Record::try_from(&b"r0\t0\talt1\t1\t255\t1M\t*\t0\t0\tA\t!"[..])?;
+
+        assert_eq!(record.reference_sequence_id(&header).transpose()?, Some(0));
+
+        Ok(())
+    }
+}
