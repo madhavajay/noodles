@@ -614,6 +614,7 @@ impl<'c, 'ch: 'c> Records<'c, 'ch> {
     }
 
     fn read_unmapped_read(&mut self, record: &mut Record<'c>) -> io::Result<()> {
+        record.mapping_quality = Some(sam::alignment::record::MappingQuality::MIN);
         record.sequence = self.read_sequence(record.read_length)?;
 
         if record.cram_flags.quality_scores_are_stored_as_array() {

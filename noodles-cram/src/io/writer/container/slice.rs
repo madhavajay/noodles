@@ -1,7 +1,7 @@
 mod header;
 pub mod records;
 
-use std::{collections::HashMap, io};
+use std::io;
 
 use flate2::Compression;
 use noodles_fasta as fasta;
@@ -131,43 +131,9 @@ fn get_reference_sequence_context(records: &[Record]) -> ReferenceSequenceContex
 fn set_mates(records: &mut [Record]) {
     assert!(!records.is_empty());
 
-    let mut indices = HashMap::new();
-    let mut i = records.len() - 1;
-
-    loop {
-        let record = &mut records[i];
-        let flags = record.bam_flags;
-
-        if flags.is_segmented() && !flags.is_secondary() {
-            let name = record.name.as_ref().map(|name| name.to_owned());
-
-            if let Some(j) = indices.insert(name, i) {
-                let mid = i + 1;
-                let (left, right) = records.split_at_mut(mid);
-
-                let record = &mut left[i];
-                let mate = &mut right[j - mid];
-
-                set_downstream_mate(i, record, j, mate);
-            } else {
-                set_detached(record);
-            }
-        } else {
-            set_detached(record);
-        }
-
-        if i == 0 {
-            break;
-        }
-
-        i -= 1;
+    for record in records {
+        set_detached(record);
     }
-}
-
-fn set_downstream_mate(i: usize, record: &mut Record, j: usize, mate: &mut Record) {
-    record.mate_distance = Some(j - i - 1);
-    record.cram_flags.insert(Flags::MATE_IS_DOWNSTREAM);
-    mate.cram_flags.remove(Flags::IS_DETACHED);
 }
 
 fn set_detached(record: &mut Record) {

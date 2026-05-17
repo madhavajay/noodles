@@ -2,4 +2,4 @@
 
 mod index;
 
-pub use self::index::index;
+pub use self::index::{index, index_with_reference_sequence_repository};

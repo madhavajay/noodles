@@ -319,6 +319,8 @@ fn get_filtered_data(
 ) -> io::Result<(Vec<(Tag, ValueBuf)>, Option<&BStr>)> {
     let mut data_buf = Vec::new();
     let mut read_group_name = None;
+    let mut mismatched_positions = None;
+    let mut edit_distance = None;
 
     for result in data.iter() {
         let (tag, value) = result?;
@@ -332,10 +334,24 @@ fn get_filtered_data(
             };
 
             read_group_name = Some(s);
+            continue;
+        }
+
+        if tag == Tag::MISMATCHED_POSITIONS {
+            mismatched_positions = Some((tag, value.try_into()?));
+            continue;
+        }
+
+        if tag == Tag::EDIT_DISTANCE {
+            edit_distance = Some((tag, value.try_into()?));
+            continue;
         }
 
         data_buf.push((tag, value.try_into()?));
     }
+
+    data_buf.extend(mismatched_positions);
+    data_buf.extend(edit_distance);
 
     Ok((data_buf, read_group_name))
 }
