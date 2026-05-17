@@ -26,6 +26,17 @@ pub fn index<P>(src: P) -> io::Result<crai::Index>
 where
     P: AsRef<Path>,
 {
+    index_with_reference_sequence_repository(src, fasta::Repository::default())
+}
+
+/// Indexes a CRAM file with an external reference sequence repository.
+pub fn index_with_reference_sequence_repository<P>(
+    src: P,
+    reference_sequence_repository: fasta::Repository,
+) -> io::Result<crai::Index>
+where
+    P: AsRef<Path>,
+{
     let mut reader = File::open(src).map(Reader::new)?;
     let header = reader.read_header()?;
 
@@ -57,12 +68,15 @@ where
 
             push_index_records(
                 &mut index,
-                &header,
-                &compression_header,
                 &slice,
-                container_position,
-                landmark as u64,
-                slice_length as u64,
+                IndexSliceContext {
+                    reference_sequence_repository: reference_sequence_repository.clone(),
+                    header: &header,
+                    compression_header: &compression_header,
+                    container_position,
+                    landmark: landmark as u64,
+                    slice_length: slice_length as u64,
+                },
             )?;
         }
 
@@ -72,32 +86,29 @@ where
     Ok(index)
 }
 
-fn push_index_records(
-    index: &mut crai::Index,
-    header: &sam::Header,
-    compression_header: &CompressionHeader,
-    slice: &Slice,
+struct IndexSliceContext<'a> {
+    reference_sequence_repository: fasta::Repository,
+    header: &'a sam::Header,
+    compression_header: &'a CompressionHeader,
     container_position: u64,
     landmark: u64,
     slice_length: u64,
+}
+
+fn push_index_records(
+    index: &mut crai::Index,
+    slice: &Slice,
+    context: IndexSliceContext<'_>,
 ) -> io::Result<()> {
     if slice.header().reference_sequence_context().is_many() {
-        push_index_records_for_multi_reference_slice(
-            index,
-            header,
-            compression_header,
-            slice,
-            container_position,
-            landmark,
-            slice_length,
-        )
+        push_index_records_for_multi_reference_slice(index, slice, context)
     } else {
         push_index_record_for_single_reference_slice(
             index,
             slice.header(),
-            container_position,
-            landmark,
-            slice_length,
+            context.container_position,
+            context.landmark,
+            context.slice_length,
         )
     }
 }
@@ -119,12 +130,8 @@ impl Default for SliceReferenceSequenceAlignmentRangeInclusive {
 
 fn push_index_records_for_multi_reference_slice(
     index: &mut crai::Index,
-    header: &sam::Header,
-    compression_header: &CompressionHeader,
     slice: &Slice,
-    container_position: u64,
-    landmark: u64,
-    slice_length: u64,
+    context: IndexSliceContext<'_>,
 ) -> io::Result<()> {
     let mut reference_sequence_ids: HashMap<
         Option<usize>,
@@ -134,9 +141,9 @@ fn push_index_records_for_multi_reference_slice(
     let (core_data_src, external_data_srcs) = slice.decode_blocks()?;
 
     for record in slice.records(
-        fasta::Repository::default(), // TODO
-        header,
-        compression_header,
+        context.reference_sequence_repository.clone(),
+        context.header,
+        context.compression_header,
         &core_data_src,
         &external_data_srcs,
     )? {
@@ -172,9 +179,9 @@ fn push_index_records_for_multi_reference_slice(
             reference_sequence_id,
             alignment_start,
             alignment_span,
-            container_position,
-            landmark,
-            slice_length,
+            context.container_position,
+            context.landmark,
+            context.slice_length,
         );
 
         index.push(record);
