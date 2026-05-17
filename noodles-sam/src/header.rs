@@ -89,7 +89,7 @@ use indexmap::IndexMap;
 pub use self::programs::Programs;
 use self::record::value::{
     Map,
-    map::{self, ReadGroup, ReferenceSequence},
+    map::{self, ReadGroup, ReferenceSequence, reference_sequence},
 };
 
 /// A reference sequence dictionary.
@@ -97,6 +97,36 @@ pub type ReferenceSequences = IndexMap<BString, Map<ReferenceSequence>>;
 
 /// An ordered map of read groups.
 pub type ReadGroups = IndexMap<BString, Map<ReadGroup>>;
+
+pub(crate) fn get_reference_sequence_index_of(
+    reference_sequences: &ReferenceSequences,
+    name: &[u8],
+) -> Option<usize> {
+    reference_sequences
+        .get_index_of(name)
+        .or_else(|| get_reference_sequence_index_of_alternative_name(reference_sequences, name))
+}
+
+fn get_reference_sequence_index_of_alternative_name(
+    reference_sequences: &ReferenceSequences,
+    name: &[u8],
+) -> Option<usize> {
+    reference_sequences
+        .values()
+        .enumerate()
+        .find_map(|(i, reference_sequence)| {
+            reference_sequence
+                .other_fields()
+                .get(&reference_sequence::tag::ALTERNATIVE_NAMES)
+                .filter(|alternative_names| {
+                    alternative_names
+                        .as_slice()
+                        .split(|&b| b == b',')
+                        .any(|alternative_name| alternative_name == name)
+                })
+                .map(|_| i)
+        })
+}
 
 /// A SAM header.
 ///

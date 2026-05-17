@@ -9,7 +9,7 @@ use lexical_core::FromLexical;
 use noodles_core::Position;
 
 pub(crate) use self::bounds::Bounds;
-use crate::Header;
+use crate::{Header, header::get_reference_sequence_index_of};
 
 const MISSING: &[u8] = b"*";
 
@@ -131,9 +131,7 @@ impl Default for Fields {
 }
 
 fn get_reference_sequence_id(header: &Header, reference_sequence_name: &[u8]) -> io::Result<usize> {
-    header
-        .reference_sequences()
-        .get_index_of(reference_sequence_name)
+    get_reference_sequence_index_of(header.reference_sequences(), reference_sequence_name)
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
