@@ -7,11 +7,7 @@ use tokio::{
 };
 
 use super::Writer;
-use crate::{
-    container::BlockContentEncoderMap,
-    file_definition::Version,
-    io::writer::{Options, RECORDS_PER_CONTAINER},
-};
+use crate::{container::BlockContentEncoderMap, file_definition::Version, io::writer::Options};
 
 /// An async CRAM writer builder.
 #[derive(Default)]
@@ -96,11 +92,17 @@ impl Builder {
             self.options.version = Version::new(3, 1);
         }
 
+        let capacity = self
+            .options
+            .records_per_slice
+            .saturating_mul(self.options.slices_per_container)
+            .max(1);
+
         Writer {
             inner: writer,
             reference_sequence_repository: self.reference_sequence_repository,
             options: self.options,
-            records: Vec::with_capacity(RECORDS_PER_CONTAINER),
+            records: Vec::with_capacity(capacity),
             record_counter: 0,
         }
     }

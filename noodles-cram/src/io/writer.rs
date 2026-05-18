@@ -21,10 +21,8 @@ use self::{
 pub(crate) use self::{options::Options, record::Record};
 use crate::FileDefinition;
 
-const DEFAULT_SLICES_PER_CONTAINER: usize = 1;
-const DEFAULT_RECORDS_PER_SLICE: usize = 10240;
-pub(crate) const RECORDS_PER_CONTAINER: usize =
-    DEFAULT_SLICES_PER_CONTAINER * DEFAULT_RECORDS_PER_SLICE;
+pub(crate) const DEFAULT_SLICES_PER_CONTAINER: usize = 1;
+pub(crate) const DEFAULT_RECORDS_PER_SLICE: usize = 10240;
 
 /// A CRAM writer.
 ///
@@ -245,7 +243,13 @@ where
     fn add_record(&mut self, header: &sam::Header, record: Record) -> io::Result<()> {
         self.records.push(record);
 
-        if self.records.len() >= self.records.capacity() {
+        let records_per_container = self
+            .options
+            .records_per_slice
+            .saturating_mul(self.options.slices_per_container)
+            .max(1);
+
+        if self.records.len() >= records_per_container {
             self.flush(header)?;
         }
 
@@ -293,5 +297,67 @@ where
 
     fn finish(&mut self, header: &sam::Header) -> io::Result<()> {
         self.try_finish(header)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use noodles_sam::{self as sam};
+
+    use super::super::reader::Container;
+    use crate::{self as cram, io::reader::Reader};
+
+    fn write_records(records_per_slice: usize, record_count: usize) -> Vec<u8> {
+        let header = sam::Header::default();
+        let mut buf = Vec::new();
+
+        let mut writer = cram::io::writer::Builder::default()
+            .set_records_per_slice(records_per_slice)
+            .build_from_writer(&mut buf);
+
+        writer.write_header(&header).unwrap();
+
+        let record = cram::Record::default();
+        for _ in 0..record_count {
+            writer.write_record(&header, &record).unwrap();
+        }
+
+        writer.try_finish(&header).unwrap();
+        buf
+    }
+
+    /// Returns `(container count, total records across all container
+    /// headers, max slices in any one container)`. Counts are taken
+    /// from the container/slice headers rather than the record decoder
+    /// so the assertion isolates the container/slice *partitioning*
+    /// (the behavior `seqs_per_slice` controls).
+    fn partition_stats(buf: &[u8]) -> (usize, usize, usize) {
+        let mut reader = Reader::new(Cursor::new(buf));
+        reader.read_header().unwrap();
+
+        let mut containers = 0;
+        let mut total_records = 0;
+        let mut max_slices = 0;
+        let mut container = Container::default();
+        while reader.read_container(&mut container).unwrap() != 0 {
+            containers += 1;
+            total_records += container.header().record_count();
+            let slices = container.slices().count();
+            max_slices = max_slices.max(slices);
+        }
+
+        (containers, total_records, max_slices)
+    }
+
+    #[test]
+    fn records_per_slice_controls_container_and_slice_partitioning() {
+        // Default behavior keeps all 5 records in one container/slice.
+        assert_eq!(partition_stats(&write_records(10_240, 5)), (1, 5, 1));
+
+        // seqs_per_slice=2 must cut a new slice/container every 2
+        // records: 5 records -> 3 containers, all records preserved.
+        assert_eq!(partition_stats(&write_records(2, 5)), (3, 5, 1));
     }
 }
