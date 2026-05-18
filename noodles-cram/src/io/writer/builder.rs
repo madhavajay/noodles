@@ -6,7 +6,7 @@ use std::{
 
 use noodles_fasta as fasta;
 
-use super::{Options, RECORDS_PER_CONTAINER, Writer};
+use super::{Options, Writer};
 use crate::{codecs::Encoder, container::BlockContentEncoderMap, file_definition::Version};
 
 // § 7 "Container header structure" (2025-04-07): "record counter: 0-based sequential index of
@@ -100,6 +100,43 @@ impl Builder {
         self
     }
 
+    /// Sets the maximum number of records per slice
+    /// (`samtools view -O cram,seqs_per_slice=N`).
+    ///
+    /// A value of 0 is ignored (the default is kept) so callers can
+    /// pass through an unset option unconditionally.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use noodles_cram::io::writer::Builder;
+    /// let builder = Builder::default().set_records_per_slice(1000);
+    /// ```
+    pub fn set_records_per_slice(mut self, value: usize) -> Self {
+        if value > 0 {
+            self.options.records_per_slice = value;
+        }
+        self
+    }
+
+    /// Sets the maximum number of slices per container
+    /// (`samtools view -O cram,slices_per_slice=N`).
+    ///
+    /// A value of 0 is ignored (the default is kept).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use noodles_cram::io::writer::Builder;
+    /// let builder = Builder::default().set_slices_per_container(2);
+    /// ```
+    pub fn set_slices_per_container(mut self, value: usize) -> Self {
+        if value > 0 {
+            self.options.slices_per_container = value;
+        }
+        self
+    }
+
     /// Builds a CRAM writer from a path.
     ///
     /// # Examples
@@ -132,11 +169,17 @@ impl Builder {
             self.options.version = Version::new(3, 1);
         }
 
+        let capacity = self
+            .options
+            .records_per_slice
+            .saturating_mul(self.options.slices_per_container)
+            .max(1);
+
         Writer {
             inner: writer,
             reference_sequence_repository: self.reference_sequence_repository,
             options: self.options,
-            records: Vec::with_capacity(RECORDS_PER_CONTAINER),
+            records: Vec::with_capacity(capacity),
             record_counter: MIN_RECORD_COUNTER,
         }
     }
