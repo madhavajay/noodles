@@ -17,6 +17,45 @@ pub use self::{
     writer::Writer,
 };
 
+/// The 28-byte BGZF end-of-file marker block.
+///
+/// A well-formed BGZF stream ends with this exact empty block. When
+/// concatenating BGZF streams at the block level, each input's trailing
+/// `EOF` block must be dropped and a single `EOF` written at the very
+/// end.
+pub const EOF: [u8; 28] = self::writer::BGZF_EOF;
+
+/// Reads one raw (still-compressed) BGZF frame.
+///
+/// On success `buf` is replaced with the verbatim frame bytes (gzip
+/// header + `CDATA` + trailer) exactly as they appear in the stream, so
+/// they can be copied to another BGZF stream without re-deflating.
+/// Returns `Ok(false)` at end of stream (no more frames), `Ok(true)`
+/// when a frame was read.
+///
+/// This is the primitive for block-level BGZF concatenation (e.g.
+/// `samtools cat`'s BAM fast path): read frames, skip per-input [`EOF`]
+/// blocks, and write a single [`EOF`] at the end.
+///
+/// # Examples
+///
+/// ```
+/// use noodles_bgzf::io::{self, EOF};
+///
+/// let mut src = &EOF[..];
+/// let mut buf = Vec::new();
+/// assert!(io::read_raw_frame(&mut src, &mut buf)?);
+/// assert_eq!(buf, EOF);
+/// assert!(!io::read_raw_frame(&mut src, &mut buf)?);
+/// # Ok::<_, std::io::Error>(())
+/// ```
+pub fn read_raw_frame<R>(reader: &mut R, buf: &mut Vec<u8>) -> std::io::Result<bool>
+where
+    R: std::io::Read,
+{
+    Ok(self::reader::frame::read_frame_into(reader, buf)?.is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::{self, BufRead, Cursor, Read, Write};
